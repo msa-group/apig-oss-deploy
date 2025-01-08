@@ -1,0 +1,49 @@
+name: Deploy to Aliyun OSS
+
+on:
+  push:
+    branches:
+      - main  # 或者您希望触发部署的其他分支
+	
+env:
+  PUBLISH_VERSION: "0.0.5"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 检出代码
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # 设置 Node.js 环境
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'  # 根据您的项目需求选择 Node.js 版本
+
+      # 安装阿里云 CLI
+      - name: Install Aliyun CLI
+        run: |
+          curl -O https://aliyuncli.alicdn.com/aliyun-cli-linux-latest-amd64.tgz
+          tar -xzf aliyun-cli-linux-latest-amd64.tgz
+          sudo mv aliyun /usr/local/bin/
+          aliyun version
+
+      # 配置阿里云 CLI
+      - name: Configure Aliyun CLI
+        run: |
+          aliyun configure set --access-key-id ${{ secrets.ALIYUN_ACCESS_KEY_ID }} \
+                                 --access-key-secret ${{ secrets.ALIYUN_ACCESS_KEY_SECRET }} \
+                                 --region cn-hangzhou
+
+      # 同步文件到 OSS
+      - name: Sync to OSS
+        run: |
+          aliyun oss cp ./dist oss://1822694099051324-sca/health/${PUBLISH_VERSION}/ -r -f -e oss-cn-hangzhou.aliyuncs.com
+
+     # 网关插件配置
+      - name: Gateway Config
+        run: |
+          aliyun mse UpdateGatewayRouteHTTPRewrite --region cn-hangzhou --Id 86367 --GatewayUniqueId 'gw-d119ecbd9b844bcea9a7f9f9d291c3d4' --HttpRewriteJSON '{"pathType":"PRE","path":"/health/${PUBLISH_VERSION}/","host":"1822694099051324-sca.oss-cn-hangzhou-internal.aliyuncs.com","status":"on"}'
